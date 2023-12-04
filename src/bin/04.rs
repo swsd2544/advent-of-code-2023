@@ -8,10 +8,9 @@ pub fn part_one(input: &str) -> Option<u32> {
         input
             .lines()
             .filter_map(|line| {
-                let colon_idx = line.find(':').unwrap();
-                let (winning_numbers, card_numbers) = &line[colon_idx + 1..]
-                    .split_once('|')
-                    .map(|(left, right)| {
+                let colon_idx = line.find(':')?;
+                let (winning_numbers, card_numbers) =
+                    &line[colon_idx + 1..].split_once('|').map(|(left, right)| {
                         (
                             left.split_whitespace()
                                 .filter_map(|n| n.parse::<u32>().ok())
@@ -21,16 +20,11 @@ pub fn part_one(input: &str) -> Option<u32> {
                                 .filter_map(|n| n.parse::<u32>().ok())
                                 .collect::<HashSet<_>>(),
                         )
-                    })
-                    .unwrap();
-                match card_numbers
-                    .iter()
-                    .filter(|n| winning_numbers.contains(n))
+                    })?;
+                winning_numbers
+                    .intersection(card_numbers)
                     .count()
-                {
-                    0 => None,
-                    n => Some(n - 1),
-                }
+                    .checked_add_signed(-1)
             })
             .map(|n| base_number.pow(n as u32))
             .sum(),
@@ -40,11 +34,10 @@ pub fn part_one(input: &str) -> Option<u32> {
 pub fn part_two(input: &str) -> Option<u32> {
     let winning_numbers_table = input
         .lines()
-        .map(|line| {
-            let colon_idx = line.find(':').unwrap();
-            let (winning_numbers, card_numbers) = &line[colon_idx + 1..]
-                .split_once('|')
-                .map(|(left, right)| {
+        .filter_map(|line| {
+            let colon_idx = line.find(':')?;
+            let (winning_numbers, card_numbers) =
+                &line[colon_idx + 1..].split_once('|').map(|(left, right)| {
                     (
                         left.split_whitespace()
                             .filter_map(|n| n.parse::<u32>().ok())
@@ -54,12 +47,8 @@ pub fn part_two(input: &str) -> Option<u32> {
                             .filter_map(|n| n.parse::<u32>().ok())
                             .collect::<HashSet<_>>(),
                     )
-                })
-                .unwrap();
-            card_numbers
-                .iter()
-                .filter(|n| winning_numbers.contains(n))
-                .count()
+                })?;
+            Some(winning_numbers.intersection(card_numbers).count())
         })
         .collect::<Vec<_>>();
 
