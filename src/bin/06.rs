@@ -10,17 +10,14 @@ impl RaceInfo {
         let a = 1_f64;
         let b = -(self.time as f64);
         let c = self.best_distance as f64;
-
-        let discriminant = b.powi(2) - (4_f64 * a * c);
-        if discriminant < 0_f64 {
-            return None;
+        let discriminant = (b.powi(2) - (4_f64 * a * c)).sqrt();
+        if !discriminant.is_nan() {
+            let min_x = ((-b - discriminant) / (2_f64 * a)).floor() as u64;
+            let max_x = ((-b + discriminant) / (2_f64 * a)).ceil() as u64;
+            Some(max_x - min_x - 1)
+        } else {
+            None
         }
-
-        let discriminant = discriminant.sqrt();
-        let min_x = ((-b - discriminant) / (2_f64 * a)).floor() as u64;
-        let max_x = ((-b + discriminant) / (2_f64 * a)).ceil() as u64;
-
-        Some(max_x - min_x - 1)
     }
 }
 
@@ -53,12 +50,12 @@ fn parse_input_part_one(input: &str) -> Vec<RaceInfo> {
 }
 
 pub fn part_one(input: &str) -> Option<u64> {
-    let race_infos = parse_input_part_one(input);
-    let wins_product = race_infos
-        .iter()
-        .filter_map(|info| info.total_winning_methods())
-        .product();
-    Some(wins_product)
+    Some(
+        parse_input_part_one(input)
+            .iter()
+            .filter_map(|info| info.total_winning_methods())
+            .product(),
+    )
 }
 
 fn parse_input_part_two(input: &str) -> RaceInfo {
@@ -79,8 +76,7 @@ fn parse_input_part_two(input: &str) -> RaceInfo {
 }
 
 pub fn part_two(input: &str) -> Option<u64> {
-    let race_info = parse_input_part_two(input);
-    race_info.total_winning_methods()
+    parse_input_part_two(input).total_winning_methods()
 }
 
 #[cfg(test)]
