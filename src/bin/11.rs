@@ -51,8 +51,6 @@ pub fn part_one(input: &str) -> Option<u64> {
         acc
     });
 
-    println!("{:?} {:?}", row_idx_offset, col_idx_offset);
-
     let sum_shortest_path = galaxy
         .iter()
         .map(|&(row_idx, col_idx)| {
