@@ -1,180 +1,195 @@
 advent_of_code::solution!(5);
 
-fn parse_dest_src_range_map(input: &str) -> Vec<(u32, u32, u32)> {
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+struct Range {
+    start: i64,
+    end: i64,
+}
+
+impl Range {
+    fn intersection(&self, other: &Self) -> Option<Self> {
+        if self.start >= other.end || self.end <= other.start {
+            None
+        } else {
+            Some(Self {
+                start: self.start.max(other.start),
+                end: self.end.min(other.end),
+            })
+        }
+    }
+
+    fn difference(&self, other: &Self) -> Option<Self> {
+        if other.contains(self) {
+            None
+        } else if self.start >= other.end || self.end <= other.start {
+            Some(self.clone())
+        } else if self.start >= other.start {
+            Some(Range {
+                start: other.end,
+                end: self.end,
+            })
+        } else {
+            Some(Range {
+                start: self.start,
+                end: other.end,
+            })
+        }
+    }
+
+    fn contains(&self, other: &Self) -> bool {
+        self.start <= other.start && self.end >= other.end
+    }
+
+    fn shift(&self, offset: i64) -> Self {
+        Self {
+            start: self.start + offset,
+            end: self.end + offset,
+        }
+    }
+}
+
+fn parse_seeds(input: &str) -> Vec<Range> {
     input
-        .lines()
-        .map(|l| {
-            l.split_whitespace()
-                .filter_map(|s| s.parse::<u32>().ok())
-                .collect::<Vec<_>>()
+        .split_once(' ')
+        .unwrap()
+        .1
+        .split_whitespace()
+        .map(|seed| {
+            let seed = seed.parse().unwrap();
+            Range {
+                start: seed,
+                end: seed + 1,
+            }
         })
-        .map(|line| (line[0], line[1], line[2]))
         .collect()
 }
 
-fn get_destination(src: u32, dest_map: &[(u32, u32, u32)]) -> u32 {
-    dest_map
-        .iter()
-        .find_map(|&(map_dest, map_src, map_range)| {
-            if src >= map_src && src - map_src < map_range {
-                Some(src - map_src + map_dest)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(src)
+fn parse_seed_ranges(input: &str) -> Vec<Range> {
+    let mut ranges = Vec::new();
+    let mut tokens = input.split_once(' ').unwrap().1.split_whitespace();
+    while let Some(start) = tokens.next() {
+        let start = start.parse().unwrap();
+        let len = tokens.next().unwrap().parse::<i64>().unwrap();
+        ranges.push(Range {
+            start,
+            end: start + len,
+        });
+    }
+    ranges
 }
 
-fn get_src(dest: u32, dest_map: &[(u32, u32, u32)]) -> u32 {
-    dest_map
-        .iter()
-        .find_map(|&(map_dest, map_src, map_range)| {
-            if dest >= map_dest && dest - map_dest < map_range {
-                Some(dest - map_dest + map_src)
-            } else {
-                None
-            }
-        })
-        .unwrap_or(dest)
+#[derive(Debug)]
+struct RangeMap {
+    src: Range,
+    dst: Range,
 }
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let mut seeds = Vec::new();
-    let mut seed_soil = Vec::new();
-    let mut soil_fertilizer = Vec::new();
-    let mut fertilizer_water = Vec::new();
-    let mut water_light = Vec::new();
-    let mut light_temperature = Vec::new();
-    let mut temperature_humidity = Vec::new();
-    let mut humidity_location = Vec::new();
+fn parse_section(input: &str) -> RangeMap {
+    let mut tokens = input.split_whitespace();
+    let dst_start = tokens.next().unwrap().parse().unwrap();
+    let src_start = tokens.next().unwrap().parse().unwrap();
+    let len = tokens.next().unwrap().parse::<i64>().unwrap();
+    RangeMap {
+        src: Range {
+            start: src_start,
+            end: src_start + len,
+        },
+        dst: Range {
+            start: dst_start,
+            end: dst_start + len,
+        },
+    }
+}
 
-    input.split("\n\n").for_each(|line| {
-        if let Some(line) = line.strip_prefix("seeds: ") {
-            seeds = line
-                .split_whitespace()
-                .filter_map(|s| s.parse::<u32>().ok())
-                .collect();
-        } else if let Some(line) = line
-            .strip_prefix("seed-to-soil map:")
-            .map(|line| line.trim())
-        {
-            seed_soil = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("soil-to-fertilizer map:")
-            .map(|line| line.trim())
-        {
-            soil_fertilizer = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("fertilizer-to-water map:")
-            .map(|line| line.trim())
-        {
-            fertilizer_water = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("water-to-light map:")
-            .map(|line| line.trim())
-        {
-            water_light = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("light-to-temperature map:")
-            .map(|line| line.trim())
-        {
-            light_temperature = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("temperature-to-humidity map:")
-            .map(|line| line.trim())
-        {
-            temperature_humidity = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("humidity-to-location map:")
-            .map(|line| line.trim())
-        {
-            humidity_location = parse_dest_src_range_map(line);
+enum Update {
+    NoChange,
+    Moved(Range),
+    TwoSplits {
+        unmoved: Range,
+        moved: Range,
+    },
+    ThreeSplits {
+        left_unmoved: Range,
+        right_unmoved: Range,
+        moved: Range,
+    },
+}
+
+fn apply_map(range: &Range, RangeMap { src, dst }: &RangeMap) -> Update {
+    if src.contains(range) {
+        Update::Moved(range.shift(dst.start - src.start))
+    } else if range.contains(src) {
+        let left_unmoved = Range {
+            start: range.start,
+            end: src.start,
+        };
+        let right_unmoved = Range {
+            start: src.end,
+            end: range.end,
+        };
+        let moved = dst.clone();
+        Update::ThreeSplits {
+            left_unmoved,
+            right_unmoved,
+            moved,
         }
-    });
-
-    seeds
-        .iter()
-        .map(|&seed| get_destination(seed, &seed_soil))
-        .map(|soil| get_destination(soil, &soil_fertilizer))
-        .map(|fertilizer| get_destination(fertilizer, &fertilizer_water))
-        .map(|water| get_destination(water, &water_light))
-        .map(|light| get_destination(light, &light_temperature))
-        .map(|temperature| get_destination(temperature, &temperature_humidity))
-        .map(|humidity| get_destination(humidity, &humidity_location))
-        .min()
+    } else if let Some(intersection) = range.intersection(src) {
+        let unmoved = range.difference(&intersection).unwrap();
+        let moved = intersection.shift(dst.start - src.start);
+        Update::TwoSplits { unmoved, moved }
+    } else {
+        Update::NoChange
+    }
 }
 
-pub fn part_two(input: &str) -> Option<u32> {
-    let mut seeds = Vec::new();
-    let mut seed_soil = Vec::new();
-    let mut soil_fertilizer = Vec::new();
-    let mut fertilizer_water = Vec::new();
-    let mut water_light = Vec::new();
-    let mut light_temperature = Vec::new();
-    let mut temperature_humidity = Vec::new();
-    let mut humidity_location = Vec::new();
-
-    input.split("\n\n").for_each(|line| {
-        if let Some(line) = line.strip_prefix("seeds: ") {
-            seeds = line
-                .split_whitespace()
-                .filter_map(|s| s.parse::<u32>().ok())
-                .collect::<Vec<_>>()
-                .chunks_exact(2)
-                .map(|ch| (ch[0], ch[1]))
-                .collect();
-        } else if let Some(line) = line
-            .strip_prefix("seed-to-soil map:")
-            .map(|line| line.trim())
-        {
-            seed_soil = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("soil-to-fertilizer map:")
-            .map(|line| line.trim())
-        {
-            soil_fertilizer = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("fertilizer-to-water map:")
-            .map(|line| line.trim())
-        {
-            fertilizer_water = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("water-to-light map:")
-            .map(|line| line.trim())
-        {
-            water_light = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("light-to-temperature map:")
-            .map(|line| line.trim())
-        {
-            light_temperature = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("temperature-to-humidity map:")
-            .map(|line| line.trim())
-        {
-            temperature_humidity = parse_dest_src_range_map(line);
-        } else if let Some(line) = line
-            .strip_prefix("humidity-to-location map:")
-            .map(|line| line.trim())
-        {
-            humidity_location = parse_dest_src_range_map(line);
+fn min_location<'a>(ranges: &[Range], sections: impl Iterator<Item = &'a str>) -> i64 {
+    let mut ranges = ranges.to_vec();
+    for section in sections {
+        let mut moved = vec![];
+        for map in section.lines().skip(1).map(parse_section) {
+            let (new_unmoved, new_moved) =
+                ranges.into_iter().fold((vec![], vec![]), |mut acc, range| {
+                    match apply_map(&range, &map) {
+                        Update::NoChange => {
+                            acc.0.push(range);
+                        }
+                        Update::Moved(range) => {
+                            acc.1.push(range);
+                        }
+                        Update::TwoSplits { unmoved, moved } => {
+                            acc.0.push(unmoved);
+                            acc.1.push(moved);
+                        }
+                        Update::ThreeSplits {
+                            left_unmoved,
+                            right_unmoved,
+                            moved,
+                        } => {
+                            acc.0.push(left_unmoved);
+                            acc.0.push(right_unmoved);
+                            acc.1.push(moved);
+                        }
+                    }
+                    acc
+                });
+            ranges = new_unmoved;
+            moved.extend_from_slice(&new_moved);
         }
-    });
+        ranges.extend_from_slice(&moved);
+    }
+    ranges.into_iter().min().unwrap().start
+}
 
-    (0..)
-        .map(|location| get_src(location, &humidity_location))
-        .map(|humidity| get_src(humidity, &temperature_humidity))
-        .map(|temperature| get_src(temperature, &light_temperature))
-        .map(|light| get_src(light, &water_light))
-        .map(|water| get_src(water, &fertilizer_water))
-        .map(|fertilizer| get_src(fertilizer, &soil_fertilizer))
-        .map(|soil| get_src(soil, &seed_soil))
-        .position(|seed| {
-            seeds
-                .iter()
-                .any(|&(src, range)| seed >= src && seed - src < range)
-        })
-        .map(|idx| idx as u32)
+pub fn part_one(input: &str) -> Option<i64> {
+    let mut input = input.split("\n\n");
+    let seeds = input.next().map(parse_seeds).unwrap();
+    Some(min_location(&seeds, input))
+}
+
+pub fn part_two(input: &str) -> Option<i64> {
+    let mut input = input.split("\n\n");
+    let seeds = input.next().map(parse_seed_ranges).unwrap();
+    Some(min_location(&seeds, input))
 }
 
 #[cfg(test)]
