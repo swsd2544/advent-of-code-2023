@@ -142,36 +142,33 @@ fn apply_map(range: &Range, RangeMap { src, dst }: &RangeMap) -> Update {
     }
 }
 
-fn min_location<'a>(ranges: &[Range], sections: impl Iterator<Item = &'a str>) -> i64 {
-    let mut ranges = ranges.to_vec();
+fn min_location<'a>(mut ranges: Vec<Range>, sections: impl Iterator<Item = &'a str>) -> i64 {
     for section in sections {
         let mut moved = vec![];
         for map in section.lines().skip(1).map(parse_section) {
-            let (new_unmoved, new_moved) =
-                ranges.into_iter().fold((vec![], vec![]), |mut acc, range| {
-                    match apply_map(&range, &map) {
-                        Update::NoChange => {
-                            acc.0.push(range);
+            let (new_unmoved, new_moved): (Vec<_>, Vec<_>) =
+                ranges
+                    .into_iter()
+                    .fold((Vec::new(), Vec::new()), |mut acc, range| {
+                        match apply_map(&range, &map) {
+                            Update::NoChange => acc.0.push(range),
+                            Update::Moved(range) => acc.1.push(range),
+                            Update::TwoSplits { unmoved, moved } => {
+                                acc.0.push(unmoved);
+                                acc.1.push(moved);
+                            }
+                            Update::ThreeSplits {
+                                left_unmoved,
+                                right_unmoved,
+                                moved,
+                            } => {
+                                acc.0.push(left_unmoved);
+                                acc.0.push(right_unmoved);
+                                acc.1.push(moved);
+                            }
                         }
-                        Update::Moved(range) => {
-                            acc.1.push(range);
-                        }
-                        Update::TwoSplits { unmoved, moved } => {
-                            acc.0.push(unmoved);
-                            acc.1.push(moved);
-                        }
-                        Update::ThreeSplits {
-                            left_unmoved,
-                            right_unmoved,
-                            moved,
-                        } => {
-                            acc.0.push(left_unmoved);
-                            acc.0.push(right_unmoved);
-                            acc.1.push(moved);
-                        }
-                    }
-                    acc
-                });
+                        acc
+                    });
             ranges = new_unmoved;
             moved.extend_from_slice(&new_moved);
         }
@@ -183,13 +180,13 @@ fn min_location<'a>(ranges: &[Range], sections: impl Iterator<Item = &'a str>) -
 pub fn part_one(input: &str) -> Option<i64> {
     let mut input = input.split("\n\n");
     let seeds = input.next().map(parse_seeds).unwrap();
-    Some(min_location(&seeds, input))
+    Some(min_location(seeds, input))
 }
 
 pub fn part_two(input: &str) -> Option<i64> {
     let mut input = input.split("\n\n");
     let seeds = input.next().map(parse_seed_ranges).unwrap();
-    Some(min_location(&seeds, input))
+    Some(min_location(seeds, input))
 }
 
 #[cfg(test)]
