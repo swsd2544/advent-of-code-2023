@@ -1,25 +1,33 @@
+use itertools::Itertools;
 use std::collections::HashSet;
 
 advent_of_code::solution!(11);
 
-pub fn part_one(input: &str) -> Option<u32> {
-    let mut rows = HashSet::new();
-    let mut cols = HashSet::new();
-    let mut galaxy = Vec::new();
-    for (row_idx, line) in input.lines().enumerate() {
-        for (col_idx, c) in line.chars().enumerate() {
-            if c == '#' {
-                rows.insert(row_idx);
-                cols.insert(col_idx);
-                galaxy.push((row_idx, col_idx))
-            }
-        }
-    }
+fn parse_galaxy(input: &str) -> Vec<(usize, usize)> {
+    input
+        .lines()
+        .enumerate()
+        .flat_map(|(row_idx, line)| {
+            line.chars()
+                .enumerate()
+                .filter(|(_, c)| *c == '#')
+                .map(move |(col_idx, _)| (row_idx, col_idx))
+        })
+        .collect()
+}
 
-    let max_row_idx = *rows.iter().max().unwrap_or(&0);
-    let row_idx_offset: Vec<usize> = (0..=max_row_idx).fold(vec![], |mut acc, idx| {
+pub fn part_one(input: &str) -> Option<u64> {
+    let galaxy = parse_galaxy(input);
+
+    let contained_galaxy_rows: HashSet<_> = galaxy.iter().map(|&(row_idx, _)| row_idx).collect();
+    let max_row_idx = contained_galaxy_rows
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or_default();
+    let row_idx_offset = (0..=max_row_idx).fold(Vec::<usize>::new(), |mut acc, idx| {
         let prev_offset = acc.last().unwrap_or(&0);
-        if rows.contains(&idx) {
+        if contained_galaxy_rows.contains(&idx) {
             acc.push(*prev_offset);
         } else {
             acc.push(*prev_offset + 2 - 1);
@@ -27,10 +35,15 @@ pub fn part_one(input: &str) -> Option<u32> {
         acc
     });
 
-    let max_col_idx = *cols.iter().max().unwrap_or(&0);
-    let col_idx_offset: Vec<usize> = (0..=max_col_idx).fold(vec![], |mut acc, idx| {
+    let contained_galaxy_cols: HashSet<_> = galaxy.iter().map(|&(_, col_idx)| col_idx).collect();
+    let max_col_idx = contained_galaxy_cols
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or_default();
+    let col_idx_offset = (0..=max_col_idx).fold(Vec::<usize>::new(), |mut acc, idx| {
         let prev_offset = acc.last().unwrap_or(&0);
-        if cols.contains(&idx) {
+        if contained_galaxy_cols.contains(&idx) {
             acc.push(*prev_offset);
         } else {
             acc.push(*prev_offset + 2 - 1);
@@ -38,40 +51,36 @@ pub fn part_one(input: &str) -> Option<u32> {
         acc
     });
 
-    galaxy.iter_mut().for_each(|(row_idx, col_idx)| {
-        *row_idx += row_idx_offset[*row_idx];
-        *col_idx += col_idx_offset[*col_idx];
-    });
+    println!("{:?} {:?}", row_idx_offset, col_idx_offset);
 
     let sum_shortest_path = galaxy
         .iter()
-        .enumerate()
-        .flat_map(|(i, p)| galaxy[i + 1..].iter().map(move |p2| (p, p2)))
-        .map(|(p, p2)| p.0.abs_diff(p2.0) + p.1.abs_diff(p2.1))
-        .map(|v| v as u32)
+        .map(|&(row_idx, col_idx)| {
+            (
+                row_idx + row_idx_offset[row_idx],
+                col_idx + col_idx_offset[col_idx],
+            )
+        })
+        .combinations(2)
+        .map(|p| p[0].0.abs_diff(p[1].0) + p[0].1.abs_diff(p[1].1))
+        .map(|v| v as u64)
         .sum();
 
     Some(sum_shortest_path)
 }
 
 pub fn part_two(input: &str) -> Option<u64> {
-    let mut rows = HashSet::new();
-    let mut cols = HashSet::new();
-    let mut galaxy = Vec::new();
-    for (row_idx, line) in input.lines().enumerate() {
-        for (col_idx, c) in line.chars().enumerate() {
-            if c == '#' {
-                rows.insert(row_idx);
-                cols.insert(col_idx);
-                galaxy.push((row_idx, col_idx))
-            }
-        }
-    }
+    let galaxy = parse_galaxy(input);
 
-    let max_row_idx = *rows.iter().max().unwrap_or(&0);
-    let row_idx_offset: Vec<usize> = (0..=max_row_idx).fold(vec![], |mut acc, idx| {
+    let contained_galaxy_rows: HashSet<_> = galaxy.iter().map(|&(row_idx, _)| row_idx).collect();
+    let max_row_idx = contained_galaxy_rows
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or_default();
+    let row_idx_offset = (0..=max_row_idx).fold(Vec::<usize>::new(), |mut acc, idx| {
         let prev_offset = acc.last().unwrap_or(&0);
-        if rows.contains(&idx) {
+        if contained_galaxy_rows.contains(&idx) {
             acc.push(*prev_offset);
         } else {
             acc.push(*prev_offset + 1000000 - 1);
@@ -79,27 +88,32 @@ pub fn part_two(input: &str) -> Option<u64> {
         acc
     });
 
-    let max_col_idx = *cols.iter().max().unwrap_or(&0);
-    let col_idx_offset: Vec<usize> = (0..=max_col_idx).fold(vec![], |mut acc, idx| {
+    let contained_galaxy_cols: HashSet<_> = galaxy.iter().map(|&(_, col_idx)| col_idx).collect();
+    let max_col_idx = contained_galaxy_cols
+        .iter()
+        .max()
+        .copied()
+        .unwrap_or_default();
+    let col_idx_offset = (0..=max_col_idx).fold(Vec::<usize>::new(), |mut acc, idx| {
         let prev_offset = acc.last().unwrap_or(&0);
-        if cols.contains(&idx) {
+        if contained_galaxy_cols.contains(&idx) {
             acc.push(*prev_offset);
         } else {
             acc.push(*prev_offset + 1000000 - 1);
         }
         acc
-    });
-
-    galaxy.iter_mut().for_each(|(row_idx, col_idx)| {
-        *row_idx += row_idx_offset[*row_idx];
-        *col_idx += col_idx_offset[*col_idx];
     });
 
     let sum_shortest_path = galaxy
         .iter()
-        .enumerate()
-        .flat_map(|(i, p)| galaxy[i + 1..].iter().map(move |p2| (p, p2)))
-        .map(|(p, p2)| p.0.abs_diff(p2.0) + p.1.abs_diff(p2.1))
+        .map(|&(row_idx, col_idx)| {
+            (
+                row_idx + row_idx_offset[row_idx],
+                col_idx + col_idx_offset[col_idx],
+            )
+        })
+        .combinations(2)
+        .map(|p| p[0].0.abs_diff(p[1].0) + p[0].1.abs_diff(p[1].1))
         .map(|v| v as u64)
         .sum();
 
