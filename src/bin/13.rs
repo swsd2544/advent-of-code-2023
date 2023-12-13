@@ -22,34 +22,7 @@ enum MirrorLine {
     Horizontal { total_top_rows: usize },
 }
 
-fn find_mirror_line(pattern: &Vec<Vec<Position>>) -> MirrorLine {
-    let num_rows = pattern.len();
-    let num_cols = pattern[0].len();
-
-    for total_left_cols in 1..num_cols {
-        let left_cols = (0..total_left_cols).rev();
-        let right_cols = total_left_cols..num_cols;
-        if left_cols.zip(right_cols).all(|(left_idx, right_idx)| {
-            (0..num_rows).all(|row_idx| pattern[row_idx][left_idx] == pattern[row_idx][right_idx])
-        }) {
-            return MirrorLine::Vertical { total_left_cols };
-        }
-    }
-
-    for total_top_rows in 1..num_rows {
-        let top_rows = (0..total_top_rows).rev();
-        let bottom_rows = total_top_rows..num_rows;
-        if top_rows.zip(bottom_rows).all(|(top_idx, bottom_idx)| {
-            (0..num_cols).all(|col_idx| pattern[top_idx][col_idx] == pattern[bottom_idx][col_idx])
-        }) {
-            return MirrorLine::Horizontal { total_top_rows };
-        }
-    }
-
-    MirrorLine::NotFound
-}
-
-fn find_mirror_line_smudge(pattern: &Vec<Vec<Position>>) -> MirrorLine {
+fn find_mirror_line(pattern: &Vec<Vec<Position>>, smudges_count: usize) -> MirrorLine {
     let num_rows = pattern.len();
     let num_cols = pattern[0].len();
 
@@ -64,7 +37,7 @@ fn find_mirror_line_smudge(pattern: &Vec<Vec<Position>>) -> MirrorLine {
                 }
             });
         }
-        if total_diff == 1 {
+        if total_diff == smudges_count {
             return MirrorLine::Vertical { total_left_cols };
         }
     }
@@ -80,7 +53,7 @@ fn find_mirror_line_smudge(pattern: &Vec<Vec<Position>>) -> MirrorLine {
                 }
             });
         }
-        if total_diff == 1 {
+        if total_diff == smudges_count {
             return MirrorLine::Horizontal { total_top_rows };
         }
     }
@@ -96,7 +69,7 @@ pub fn part_one(input: &str) -> Option<u32> {
                 .lines()
                 .map(|line| line.chars().map(Position::from).collect())
                 .collect();
-            match find_mirror_line(&pattern) {
+            match find_mirror_line(&pattern, 0) {
                 MirrorLine::NotFound => 0,
                 MirrorLine::Vertical { total_left_cols } => total_left_cols,
                 MirrorLine::Horizontal { total_top_rows } => 100 * total_top_rows,
@@ -114,7 +87,7 @@ pub fn part_two(input: &str) -> Option<u32> {
                 .lines()
                 .map(|line| line.chars().map(Position::from).collect())
                 .collect();
-            match find_mirror_line_smudge(&pattern) {
+            match find_mirror_line(&pattern, 1) {
                 MirrorLine::NotFound => 0,
                 MirrorLine::Vertical { total_left_cols } => total_left_cols,
                 MirrorLine::Horizontal { total_top_rows } => 100 * total_top_rows,
