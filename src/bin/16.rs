@@ -18,73 +18,59 @@ struct Beam {
 }
 
 enum BeamUpdate {
-    NoChange(),
+    NoChange,
     Reflected(Direction),
     Splited(Direction, Direction),
 }
 
 impl Beam {
     fn interact(self, object: char) -> BeamUpdate {
+        use Direction::*;
         match object {
-            '.' => BeamUpdate::NoChange(),
-            '/' => match self.direction {
-                Direction::Up => BeamUpdate::Reflected(Direction::Right),
-                Direction::Down => BeamUpdate::Reflected(Direction::Left),
-                Direction::Left => BeamUpdate::Reflected(Direction::Down),
-                Direction::Right => BeamUpdate::Reflected(Direction::Up),
-            },
-            '\\' => match self.direction {
-                Direction::Up => BeamUpdate::Reflected(Direction::Left),
-                Direction::Down => BeamUpdate::Reflected(Direction::Right),
-                Direction::Left => BeamUpdate::Reflected(Direction::Up),
-                Direction::Right => BeamUpdate::Reflected(Direction::Down),
-            },
-            '|' => match self.direction {
-                Direction::Right | Direction::Left => {
-                    BeamUpdate::Splited(Direction::Up, Direction::Down)
-                }
-                _ => BeamUpdate::NoChange(),
-            },
-            '-' => match self.direction {
-                Direction::Up | Direction::Down => {
-                    BeamUpdate::Splited(Direction::Left, Direction::Right)
-                }
-                _ => BeamUpdate::NoChange(),
-            },
+            '.' => BeamUpdate::NoChange,
+            '/' => BeamUpdate::Reflected(match self.direction {
+                Up => Right,
+                Down => Left,
+                Left => Down,
+                Right => Up,
+            }),
+            '\\' => BeamUpdate::Reflected(match self.direction {
+                Up => Left,
+                Down => Right,
+                Left => Up,
+                Right => Down,
+            }),
+            '|' if matches!(self.direction, Right | Left) => BeamUpdate::Splited(Up, Down),
+            '|' if matches!(self.direction, Up | Down) => BeamUpdate::NoChange,
+            '-' if matches!(self.direction, Up | Down) => BeamUpdate::Splited(Left, Right),
+            '-' if matches!(self.direction, Right | Left) => BeamUpdate::NoChange,
             c => panic!("unknown object: {}", c),
         }
     }
 
     fn bounces(&mut self, max_row_idx: usize, max_col_idx: usize) -> bool {
+        use Direction::*;
         match self.direction {
-            Direction::Up => {
-                if self.row_idx == 0 {
-                    false
-                } else {
+            Up => {
+                self.row_idx > 0 && {
                     self.row_idx -= 1;
                     true
                 }
             }
-            Direction::Down => {
-                if self.row_idx == max_row_idx - 1 {
-                    false
-                } else {
+            Down => {
+                self.row_idx < max_row_idx - 1 && {
                     self.row_idx += 1;
                     true
                 }
             }
-            Direction::Left => {
-                if self.col_idx == 0 {
-                    false
-                } else {
+            Left => {
+                self.col_idx > 0 && {
                     self.col_idx -= 1;
                     true
                 }
             }
-            Direction::Right => {
-                if self.col_idx == max_col_idx - 1 {
-                    false
-                } else {
+            Right => {
+                self.col_idx < max_col_idx - 1 && {
                     self.col_idx += 1;
                     true
                 }
@@ -104,26 +90,28 @@ fn count_energized_tiles(grid: &Vec<Vec<char>>, starter: Beam) -> u32 {
         loop {
             let entry = energized_tiles
                 .entry((beam.row_idx, beam.col_idx))
-                .or_insert(Vec::new());
+                .or_insert_with(Vec::new);
+
             if entry.contains(&beam.direction) {
                 break;
             }
+
             entry.push(beam.direction);
 
             match beam.interact(grid[beam.row_idx][beam.col_idx]) {
-                BeamUpdate::NoChange() => {}
-                BeamUpdate::Reflected(direction) => {
-                    beam.direction = direction;
-                }
+                BeamUpdate::NoChange => {}
+                BeamUpdate::Reflected(direction) => beam.direction = direction,
                 BeamUpdate::Splited(direction, another_direction) => {
                     let mut another_beam = Beam {
                         row_idx: beam.row_idx,
                         col_idx: beam.col_idx,
                         direction: another_direction,
                     };
+
                     if another_beam.bounces(num_rows, num_cols) {
                         beams.push(another_beam);
                     }
+
                     beam.direction = direction;
                 }
             }
